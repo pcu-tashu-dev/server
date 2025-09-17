@@ -14,7 +14,7 @@ async def _maybe_await(value):
 async def run() -> int:
     load_dotenv()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--kine", required=True)
+    parser.add_argument("--kind", required=True)
     parser.add_argument("--sink", choices=["none", "influx"], default=None)
     parser.add_argument("--bucket", default=None)
     parser.add_argument("--measurement", default=None)
@@ -30,7 +30,7 @@ async def run() -> int:
     autodiscover_scrapers()
 
     api_client = TashuApiClient.from_env()
-    scraper = ScraperFactory.create(args.kine, client=api_client)
+    scraper = ScraperFactory.create(args.kind, client=api_client)
 
     raw = await _maybe_await(scraper.fetch())
     items_iter = await _maybe_await(scraper.parse(raw))
@@ -42,7 +42,7 @@ async def run() -> int:
 
     if sink == "influx":
         await DBObject.init("influx")
-        measurement = args.measurement or args.kine
+        measurement = args.measurement or args.kind
         bucket = args.bucket or os.getenv("INFLUX_BUCKET")
         if not bucket:
             raise SystemExit("Influx bucket이 지정되지 않았습니다.")
