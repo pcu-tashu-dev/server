@@ -14,27 +14,25 @@ Tashu API로 부터 Station(정류장 정보), parking_count(대여 가능 바�
 > git clone https://github.com/pcu-tashu-dev/server
 > ```
 
-> [!NOTE]
+> [!NOTE] 
 > **station 정보 불러오는 커맨드**
 >
 > ```bash
-> python -m collector --kind station   # 정류장 정보를 불러옵니다.
+> python -m collector.cli --kind station --sink postgres
 > ```
 
 > [!NOTE] 
 > **parking_count 정보 불러오는 커맨드**
 >
 > ```bash
-> python -m collector --kind parking_count --sink influx --measurement parking_count --tag-keys station_id --time-key updated_at
+> python -m collector.cli --kind parking_count --sink influx
 > ```
 
 > [!CAUTION]
 > **주의 사항**
-> 
-> station 정보 불러오는 커맨드는 변경 예정 입니다.
-
----
-
-### 해야 할 것
-
-Database (PostgreSQL)과 Station 정보를 연동 해야 하며, parking_count 정보는 Docker나 Crontab을 통한 자동화가 진행되어야 합니다.
+>
+> 다음 코드 실행을 위해서는, Postgres 정보가 .env에 기입되어 있어야 합니다.
+> 또한, station 테이블은 server 폴더에서 다음 명령어로 실행하여 생성합니다.
+> ```bash
+> python -m database.init_db
+> ```
