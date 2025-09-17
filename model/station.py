@@ -1,4 +1,3 @@
-# models.py
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, String, Float
 from model.base_class import Base
