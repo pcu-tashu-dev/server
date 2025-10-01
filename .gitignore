@@ -1,5 +1,2 @@
 # __pycache__ 폴더 트랙킹 무시를 위한 .gitignore
 *__pycache__
-
-# 개인 설정 파일
-.env
