@@ -1,4 +1,3 @@
-onBootstrap((e) => {
-  console.log("🎉 Tashu-dev application is initialized");
-  e.next();
-});
+(() => {
+  console.log("🎉 Tashu-dev application fired!");
+})();
