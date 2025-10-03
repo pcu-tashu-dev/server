@@ -1,5 +1,5 @@
 FROM alpine:3.20 AS builder
-ARG PB_VERSION=0.22.16
+ARG PB_VERSION=0.22.6
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 WORKDIR /tmp
@@ -24,4 +24,4 @@ VOLUME ["/pb/pb_data"]
 EXPOSE 8090
 USER pocketbase
 
-CMD ["pocketbase", "serve", "--http", "0.0.0.0:8090", "--dir", "/pb/pb_data", "--publicDir", "/pb/pb_public"]
+CMD ["pocketbase", "serve", "--http", "0.0.0.0:8090", "--dir", "/pb/pb_data"]
