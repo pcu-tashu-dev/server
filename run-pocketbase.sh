@@ -27,6 +27,7 @@ HTTP_ADDR="0.0.0.0:${PB_PORT}"
 echo "[i] Run PocketBase container"
 docker run -d \
   --name "$CONTAINER" \
+  --user $(id -u):$(id -g) \
   --entrypoint /usr/local/bin/pocketbase \
   -p "${HOST_PORT}:${PB_PORT}" \
   -e TZ="${TZ_REGION}" \
