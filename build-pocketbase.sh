@@ -1,6 +1,6 @@
 set -e
 
-PB_VERSION=${1:-0.22.16}
+PB_VERSION=${1:-0.30.1}
 IMAGE_NAME=${2:-pocketbase}
 IMAGE_TAG=${3:-latest}
 

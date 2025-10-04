@@ -1,5 +1,5 @@
 param(
-    [string]$PB_VERSION = "0.22.16",
+    [string]$PB_VERSION = "0.30.1",
     [string]$IMAGE_NAME = "pocketbase",
     [string]$IMAGE_TAG = "latest"
 )
