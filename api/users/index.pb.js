@@ -1,4 +1,4 @@
-routerAdd("POST", "/users/register", (e) => {
+routerAdd("POST", "/users", (e) => {
   try {
     const data = new DynamicModel({
       email: "",
