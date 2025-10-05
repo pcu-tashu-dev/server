@@ -12,7 +12,6 @@ routerAdd("POST", "/users", (e) => {
     const password = data.password;
     const passwordConfirm = data.passwordConfirm;
 
-    console.log(email, username, password, passwordConfirm);
     if (!email || !password || !passwordConfirm) {
       return e.json(400, {
         success: false,
