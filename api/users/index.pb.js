@@ -76,3 +76,53 @@ routerAdd("POST", "/users", (e) => {
     return e.json(500, { success: false, error: msg });
   }
 });
+
+routerAdd("POST", "/users/login", (e) => {
+  try {
+    const data = new DynamicModel({
+      email: "",
+      password: "",
+    });
+    e.bindBody(data);
+    const email = data.email;
+    const password = data.password;
+
+    if (!email || !password) {
+      return e.json(400, {
+        success: false,
+        error: "email, password are required",
+      });
+    }
+    let user;
+
+    try {
+      user = $app.findFirstRecordByData("users", "email", email);
+    } catch (error) {
+      return e.json(500, {
+        success: false,
+        error: error.message,
+      });
+    }
+
+    if (!user.validatePassword(password)) {
+      return e.json(401, {
+        success: false,
+        error: "email or password is incorrect",
+      });
+    }
+
+    const token = user.newAuthToken();
+    return e.json(200, {
+      success: true,
+      token: { access_token: token, token_type: "Bearer" },
+      user: {
+        id: user.id,
+        email: user.email(),
+        username: user.getString("username"),
+      },
+    });
+  } catch (err) {
+    const msg = err?.message || "Failed to login";
+    return e.json(500, { success: false, error: msg });
+  }
+});
