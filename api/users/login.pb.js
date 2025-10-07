@@ -1,7 +1,7 @@
 routerAdd("POST", "/users/login", (e) => {
+  const { ok, fail } = require(`${__hooks}/lib/response.js`);
+  const { parse, requireFields } = require(`${__hooks}/lib/body.js`);
   try {
-    const { ok, fail } = require(`${__hooks}/lib/response.js`);
-    const { parse, requireFields } = require(`${__hooks}/lib/body.js`);
     const body = parse(e, { email: "", password: "" });
     requireFields(body, ["email", "password"]);
 
