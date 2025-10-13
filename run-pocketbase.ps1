@@ -1,42 +1,49 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$Image     = "pocketbase"
-$Container = "pocketbase"
-$HostPort  = 8090
-$PbPort    = 8090
-$DataDir   = "pb_data"
-$HooksDir  = "api"
-$TimeZone  = "Asia/Seoul"
+$IMAGE        = "pocketbase"
+$CONTAINER    = "pocketbase"
+$HOST_PORT    = 8090
+$PB_PORT      = 8090
+$DATA_DIR     = "./pb_data"
+$HOOKS_DIR    = "./api"
+$MIGRATIONS_DIR = "./migrations"
+$TZ_REGION    = "Asia/Seoul"
 
 Write-Host "[i] Prepare directories"
-New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
-New-Item -ItemType Directory -Force -Path $HooksDir | Out-Null
+New-Item -ItemType Directory -Force -Path $DATA_DIR | Out-Null
+New-Item -ItemType Directory -Force -Path $HOOKS_DIR | Out-Null
+New-Item -ItemType Directory -Force -Path $MIGRATIONS_DIR | Out-Null
+
+$DATA_ABS      = (Resolve-Path $DATA_DIR).Path
+$HOOKS_ABS     = (Resolve-Path $HOOKS_DIR).Path
+$MIGRATIONS_ABS = (Resolve-Path $MIGRATIONS_DIR).Path
 
 Write-Host "[i] Cleanup existing container (if any)"
-docker rm -f $Container 2>$null | Out-Null
+docker rm -f $CONTAINER | Out-Null
 
-$pwdPath  = (Get-Location).Path
-$dataAbs  = Join-Path $pwdPath $DataDir
-$hooksAbs = Join-Path $pwdPath $HooksDir
-$Http     = "0.0.0.0:$PbPort"
+$HTTP_ADDR = "0.0.0.0:$PB_PORT"
 
 Write-Host "[i] Run PocketBase container"
 docker run -d `
-  --name $Container `
+  --name $CONTAINER `
   --entrypoint /usr/local/bin/pocketbase `
-  -p ("{0}:{1}" -f $HostPort, $PbPort) `
-  -e TZ=$TimeZone `
-  -v ("{0}:/pb_data"  -f $dataAbs) `
-  -v ("{0}:/pb_hooks" -f $hooksAbs) `
+  -p "$HOST_PORT`:$PB_PORT" `
+  -e "TZ=$TZ_REGION" `
+  --env-file .env `
+  -v "${DATA_ABS}:/pb/pb_data" `
+  -v "${HOOKS_ABS}:/pb/pb_hooks" `
+  -v "${MIGRATIONS_ABS}:/pb/pb_migrations" `
   --restart unless-stopped `
-  $Image `
-  serve --http $Http `
-        --dir /pb_data `
-        --hooksDir /pb_hooks `
+  $IMAGE `
+  serve --http "$HTTP_ADDR" `
+        --dir /pb/pb_data `
+        --hooksDir /pb/pb_hooks `
         --hooksPool 4 `
-        --hooksWatch | Out-Null
+        --hooksWatch `
+        --migrationsDir /pb/pb_migrations
 
-Write-Host ("[✓] Admin UI: http://localhost:{0}/_/" -f $HostPort)
-Write-Host ("[✓] Hooks mount: {0}  ->  /pb_hooks" -f $hooksAbs)
-Write-Host ("[i] Logs: docker logs -f {0}" -f $Container)
+Write-Host "[✓] Admin UI: http://localhost:$HOST_PORT/_/"
+Write-Host "[✓] Hooks mount: ${HOOKS_ABS}  ->  /pb/pb_hooks"
+Write-Host "[✓] Migrations mount: ${MIGRATIONS_ABS}  ->  /pb/pb_migrations"
+Write-Host "[i] Logs: docker logs -f $CONTAINER"
