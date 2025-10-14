@@ -35,7 +35,7 @@ docker run -d \
   --entrypoint /usr/local/bin/pocketbase \
   -p "${HOST_PORT}:${PB_PORT}" \
   -e TZ="${TZ_REGION}" \
-  --env-file .env \ 
+  --env-file .env \
   -v "${DATA_ABS}:/pb/pb_data" \
   -v "${HOOKS_ABS}:/pb/pb_hooks" \
   -v "${MIGRATIONS_ABS}:/pb/pb_migrations" \
