@@ -18,6 +18,11 @@ migrate(
       fields: [
         {
           type: "text",
+          name: "id",
+          required: true,
+        },
+        {
+          type: "text",
           name: "name",
           required: true,
         },
@@ -52,6 +57,24 @@ migrate(
 
       indexes: [],
     });
+
+    col.fields.addAt(
+      0,
+      new Field({
+        autogeneratePattern: "",
+        hidden: false,
+        id: "text3208210256",
+        max: 0,
+        min: 0,
+        name: "id",
+        pattern: "^[A-z0-9]+$",
+        presentable: false,
+        primaryKey: true,
+        required: true,
+        system: true,
+        type: "text",
+      })
+    );
 
     app.save(col);
   },
