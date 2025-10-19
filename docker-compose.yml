@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   influxdb:
     image: influxdb:2.7
@@ -23,16 +21,36 @@ services:
       retries: 10
     restart: unless-stopped
 
-  api:
-    build: .
-    depends_on:
-      influxdb:
-        condition: service_healthy
-    environment:
-      INFLUXDB_URL: ${INFLUXDB_INTERNAL_URL}
-      INFLUXDB_TOKEN: ${INFLUXDB_ADMIN_TOKEN}
-      INFLUXDB_ORG: ${INFLUXDB_ORG}
-      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+  pocketbase:
+    build:
+      context: .
+      dockerfile: Dockerfile.pocketbase
+    container_name: pocketbase
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pb_data:/pb/pb_data
+      - ./migrations:/pb/pb_migrations
+      - ./api:/pb/pb_hooks
+    command: [
+        "sh",
+        "-c",
+        "pocketbase migrate up --dir /pb/pb_data --migrationsDir /pb/pb_migrations \
+        && exec pocketbase serve --http 0.0.0.0:8090 --dir /pb/pb_data \
+        --hooksDir /pb/pb_hooks --migrationsDir /pb/pb_migrations",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -fsS http://localhost:8090/api/health >/dev/null",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
   influxdb-data:
