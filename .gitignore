@@ -1,5 +1,6 @@
 *__pycache__
 *pb_data
+*pb_migrations
 *node_modules
 *package-lock.json
 *.DS_Store
