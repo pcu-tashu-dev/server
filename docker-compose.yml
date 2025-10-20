@@ -26,6 +26,7 @@ services:
       context: .
       dockerfile: Dockerfile.pocketbase
     container_name: pocketbase
+    user: "1000:1000"
     ports:
       - "8090:8090"
     volumes:
