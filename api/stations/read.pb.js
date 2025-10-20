@@ -6,7 +6,15 @@ routerAdd("GET", "/stations/{id}", async (e) => {
 
     try {
       const record = $app.findFirstRecordByData("stations", "id", id);
-      return ok(e, { station: record.publicExport() });
+      const zoneRecord = $app.findFirstRecordByData(
+        "daejeon_zones",
+        "id",
+        record.get("zone")
+      );
+      return ok(e, {
+        station: record.publicExport(),
+        zone: zoneRecord.publicExport(),
+      });
     } catch (err) {
       console.log(String(err));
       return fail(e, "station not founded", 404);
