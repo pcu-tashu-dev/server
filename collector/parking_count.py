@@ -1,5 +1,6 @@
 from influxdb_client.client.write_api import SYNCHRONOUS
 from influxdb_client import Point
+from dotenv import load_dotenv
 from typing import Any
 import influxdb_client
 import requests
@@ -50,3 +51,10 @@ def insert_parking_count(data: list[list[Any]]) -> None:
     ]
 
     write_api.write(bucket=bucket, org=org, record=points)
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    res = get_parking_count_response()
+    rows = parse_parking_count(res)
+    insert_parking_count(rows)
