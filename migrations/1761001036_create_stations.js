@@ -4,6 +4,7 @@ migrate(
       app.findCollectionByNameOrId("stations");
       return;
     } catch (_) {}
+    const dz = app.findCollectionByNameOrId("daejeon_zones");
 
     const col = new Collection({
       type: "base",
@@ -42,6 +43,14 @@ migrate(
           required: true,
         },
         {
+          type: "relation",
+          name: "zone",
+          required: true,
+          collectionId: dz.id,
+          maxSelect: 1,
+          cascadeDelete: false,
+        },
+        {
           type: "autodate",
           name: "created",
           required: false,
@@ -75,8 +84,6 @@ migrate(
         type: "text",
       })
     );
-
-    app.save(col);
   },
 
   (app) => {
