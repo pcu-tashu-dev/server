@@ -37,7 +37,6 @@ migrate(
 
     app.save(col);
 
-    // seed 56 grid records (7 x 8)
     const c = app.findCollectionByNameOrId("daejeon_zones");
     const data = [
       {
