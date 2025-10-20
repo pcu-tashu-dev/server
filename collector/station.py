@@ -97,7 +97,7 @@ def insert_station(rows: List[List[Any]]) -> None:
             print(f"[ERR] {sid}: {e.response.status_code} {e.response.text}")
 
 
-def get_station_and_zone_by_id(id: str) -> dict[str, Any]:
+def get_zone_by_station_id(id: str) -> dict[str, Any]:
     response = requests.get(
         f"http://localhost:8090/stations/{id}",
         headers={"Content-Type": "application/json"},
@@ -107,7 +107,7 @@ def get_station_and_zone_by_id(id: str) -> dict[str, Any]:
     if data["success"] == False:
         raise Exception("request is not reached")
 
-    return data["station"], data["zone"]
+    return data["zone"]
 
 
 if __name__ == "__main__":

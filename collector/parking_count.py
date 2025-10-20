@@ -9,7 +9,7 @@ import sys, os
 sys.path.append(os.path.dirname(__file__))
 
 from fetch_weather import get_open_weather_response, parse_weather_data
-from station import get_station_and_zone_by_id
+from station import get_zone_by_station_id
 
 
 def get_parking_count_response(
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     weather_by_station: dict[str, dict[str, Any]] = {}
     ow_key = os.getenv("OPENWEATHER_API_KEY")
     for station_id, _count in rows:
-        station, zone = get_station_and_zone_by_id(station_id)
+        station, zone = get_zone_by_station_id(station_id)
         ow_json = get_open_weather_response(
             ow_key, zone["center_lat"], zone["center_lon"]
         )
