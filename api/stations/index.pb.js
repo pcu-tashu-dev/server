@@ -1,1 +1,1 @@
-require(`${__hooks}/stations/create.pb.js`);
+require(`${__hooks}/stations/read.pb.js`);
