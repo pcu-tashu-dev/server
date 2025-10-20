@@ -1,4 +1,5 @@
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict
+from dotenv import load_dotenv
 import requests
 import os
 
@@ -97,6 +98,7 @@ def insert_station(rows: List[List[Any]]) -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     res = get_station_response()
     rows = parse_station(res)
     insert_station(rows)
