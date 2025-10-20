@@ -84,6 +84,8 @@ migrate(
         type: "text",
       })
     );
+
+    app.save(col);
   },
 
   (app) => {
