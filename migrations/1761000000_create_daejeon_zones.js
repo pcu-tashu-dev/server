@@ -28,6 +28,8 @@ migrate(
         { type: "number", name: "max_lat", required: true },
         { type: "number", name: "min_lon", required: true },
         { type: "number", name: "max_lon", required: true },
+        { type: "number", name: "center_lat", required: true },
+        { type: "number", name: "center_lon", required: true },
       ],
 
       indexes: [
@@ -440,6 +442,12 @@ migrate(
       rec.set("max_lat", item.max_lat);
       rec.set("min_lon", item.min_lon);
       rec.set("max_lon", item.max_lon);
+
+      const centerLat = (item.min_lat + item.max_lat) / 2;
+      const centerLon = (item.min_lon + item.max_lon) / 2;
+      rec.set("center_lat", centerLat);
+      rec.set("center_lon", centerLon);
+
       app.save(rec);
     }
   },
