@@ -1,95 +1,144 @@
+# parking_count.py
+from __future__ import annotations
+import json, asyncio
+from typing import Dict, Any, List, Tuple
+from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-from influxdb_client import Point
-from dotenv import load_dotenv
-from typing import Any
-import influxdb_client
-import requests
-import sys, os
-
-sys.path.append(os.path.dirname(__file__))
-
-from fetch_weather import get_open_weather_response, parse_weather_data
-from station import get_zone_by_station_id
+from settings import Settings, load_settings
+from http_client import AsyncHTTP
 
 
-def get_parking_count_response(
-    URL: str = "https://bikeapp.tashu.or.kr:50041/v1/openapi/station",
-) -> dict[str, Any]:
-    headers = {
-        "api-token": os.getenv("TASHU_KEY"),
-    }
-    res = requests.get(URL, headers=headers)
-    if res.status_code == 200:
-        return res.json()
-
-    else:
-        raise RuntimeError(
-            {
-                400: "토큰이 만료되었거나 잘못되었습니다.",
-                404: "페이지를 찾을 수 없습니다.",
-                500: "서버 내부 오류가 발생하였습니다.",
-            }[res.status_code]
-        )
-
-
-def parse_parking_count(res: dict[str, Any]) -> dict[str, Any]:
-    data = res["results"]
-    results = list(map(lambda x: [x["id"], x["parking_count"]], data))
-    return results
-
-
-def insert_parking_count(data: list[list[Any]], weather_data: list[list[Any]]) -> None:
-    url = os.getenv("INFLUXDB_URL")
-    org = os.getenv("INFLUXDB_ORG")
-    token = os.getenv("INFLUXDB_ADMIN_TOKEN")
-    bucket = os.getenv("INFLUXDB_BUCKET")
-
-    measurement = "tashu_station"  # 기존 measurement 유지
-    client = influxdb_client.InfluxDBClient(
-        url=url, org=org, token=token, bucket=bucket
+async def get_parking_count_response(http: AsyncHTTP, st: Settings) -> Dict[str, Any]:
+    return await http.get_json(
+        st.tashu_url,
+        headers={"api-token": st.tashu_key},
+        max_attempts=st.retry_total + 1,
     )
-    write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    points: list[Point] = []
-    for station_id, parking_count in data:
-        wd = weather_data.get(station_id, {})
+
+def parse_parking_count(res: Dict[str, Any]) -> List[Tuple[str, int]]:
+    data = res.get("results") or res.get("result") or res.get("data") or []
+    out: List[Tuple[str, int]] = []
+    for x in data:
+        sid = str(x.get("id") or x.get("station_id") or x.get("stationId") or "")
+        pc = x.get("parking_count") or x.get("parkingCount") or x.get("parking") or 0
+        if sid:
+            out.append((sid, int(pc)))
+    return out
+
+
+async def _get_zone_by_station_id(
+    http: AsyncHTTP, st: Settings, sid: str
+) -> Dict[str, Any]:
+    if not st.pb_url:
+        return {}
+    url = f"{st.pb_url.rstrip('/')}/stations/{sid}"
+    r = await http.get_json(
+        url,
+        headers={"Content-Type": "application/json"},
+        max_attempts=st.retry_total + 1,
+    )
+    if isinstance(r, dict) and r.get("success") is False:
+        return {}
+    return r.get("zone") or {}
+
+
+async def _get_weather(
+    http: AsyncHTTP, st: Settings, lat: float, lon: float
+) -> Dict[str, Any]:
+    if not st.openweather_api_key:
+        return {}
+    url = "https://api.openweathermap.org/data/2.5/weather"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": st.openweather_api_key,
+        "units": "metric",
+        "lang": "kr",
+    }
+    return await http.get_json(url, params=params, max_attempts=st.retry_total + 1)
+
+
+def _parse_weather(d: Dict[str, Any]) -> Dict[str, Any]:
+    w = d.get("weather") or []
+    m = d.get("main") or {}
+    wd = d.get("wind") or {}
+    return {
+        "weather": [x.get("main") for x in w],
+        "temp": m.get("temp"),
+        "wind_speed": wd.get("speed"),
+    }
+
+
+async def _augment_with_weather(
+    http: AsyncHTTP, st: Settings, rows: List[Tuple[str, int]]
+) -> Dict[str, Dict[str, Any]]:
+    if not (st.pb_url and st.openweather_api_key):
+        return {}
+    sem = asyncio.Semaphore(st.concurrency)
+
+    async def one(sid: str) -> Tuple[str, Dict[str, Any]]:
+        async with sem:
+            z = await _get_zone_by_station_id(http, st, sid)
+            lat = z.get("center_lat")
+            lon = z.get("center_lon")
+            if lat is None or lon is None:
+                return sid, {}
+            d = await _get_weather(http, st, float(lat), float(lon))
+            return sid, _parse_weather(d)
+
+    pairs = await asyncio.gather(*(one(s) for s, _ in rows))
+    return dict(pairs)
+
+
+def _write_influx(
+    st: Settings, rows: List[Tuple[str, int]], wx: Dict[str, Dict[str, Any]]
+) -> None:
+    if not (st.influx_url and st.influx_org and st.influx_token and st.influx_bucket):
+        return
+    c = InfluxDBClient(
+        url=st.influx_url,
+        org=st.influx_org,
+        token=st.influx_token,
+        bucket=st.influx_bucket,
+    )
+    w = c.write_api(write_options=SYNCHRONOUS)
+    measurement = "tashu_station"
+    pts = []
+    for sid, cnt in rows:
+        wd = wx.get(sid) or {}
         p = (
             Point(measurement)
-            .tag("station_id", str(station_id))
-            .tag("weather_main", str(wd.get("weather") or ""))
-            .field("parking_count", int(parking_count))
-            .field("temp", float(wd["temp"]))
-            if wd.get("temp") is not None
-            else Point(measurement)
-        )
-
-        p = (
-            Point(measurement)
-            .tag("station_id", str(station_id))
+            .tag("station_id", str(sid))
             .tag("weather_main", str(wd.get("weather") or ""))
         )
-        p.field("parking_count", int(parking_count))
+        p = p.field("parking_count", int(cnt))
         if wd.get("temp") is not None:
-            p.field("temp", float(wd["temp"]))
+            p = p.field("temp", float(wd["temp"]))
         if wd.get("wind_speed") is not None:
-            p.field("wind_speed", float(wd["wind_speed"]))
+            p = p.field("wind_speed", float(wd["wind_speed"]))
+        pts.append(p)
+    if pts:
+        w.write(bucket=st.influx_bucket, org=st.influx_org, record=pts)
+    c.close()
 
-        points.append(p)
 
-    if points:
-        write_api.write(bucket=bucket, org=org, record=points)
+async def insert_parking_count(rows: List[Tuple[str, int]], st: Settings) -> None:
+    http = AsyncHTTP(st)
+    try:
+        wx = await _augment_with_weather(http, st, rows)
+        await asyncio.to_thread(_write_influx, st, rows, wx)
+    finally:
+        await http.close()
 
 
-if __name__ == "__main__":
-    load_dotenv()
-    res = get_parking_count_response()
-    rows = parse_parking_count(res)
-    weather_by_station: dict[str, dict[str, Any]] = {}
-    ow_key = os.getenv("OPENWEATHER_API_KEY")
-    for station_id, _count in rows:
-        zone = get_zone_by_station_id(station_id)
-        ow_json = get_open_weather_response(
-            ow_key, zone["center_lat"], zone["center_lon"]
-        )
-        weather_by_station[station_id] = parse_weather_data(ow_json)
-    insert_parking_count(rows, weather_by_station)
+async def main() -> None:
+    st = load_settings()
+    http = AsyncHTTP(st)
+    try:
+        raw = await get_parking_count_response(http, st)
+        rows = parse_parking_count(raw)
+    finally:
+        await http.close()
+    await insert_parking_count(rows, st)
+    print(json.dumps({"count": len(rows), "sample": rows[:3]}, ensure_ascii=False))
