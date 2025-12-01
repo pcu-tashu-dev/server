@@ -4,7 +4,8 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 WORKDIR /tmp
 RUN apk add --no-cache curl unzip
-RUN curl -L -o pb.zip \
+RUN curl -L --retry 5 --retry-delay 2 -o pb.zip \
+    --resolve release-assets.githubusercontent.com:443:185.199.110.133 \
     https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_${TARGETOS}_${TARGETARCH}.zip \
     && unzip pb.zip -d /out
 
