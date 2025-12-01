@@ -266,8 +266,12 @@ class AsyncHTTP:
         )
         try:
             j = await r.json()
+        except Exception:
+            j = {"error": await r.text()}
         finally:
             await r.release()
+        if r.status >= 400:
+            raise RuntimeError(f"HTTP {r.status}: {j}")
         return j
 
     async def post_json(
@@ -278,8 +282,12 @@ class AsyncHTTP:
         )
         try:
             j = await r.json()
+        except Exception:
+            j = {"error": await r.text()}
         finally:
             await r.release()
+        if r.status >= 400:
+            raise RuntimeError(f"HTTP {r.status}: {j}")
         return j
 
     async def patch_json(
@@ -294,6 +302,10 @@ class AsyncHTTP:
         )
         try:
             j = await r.json()
+        except Exception:
+            j = {"error": await r.text()}
         finally:
             await r.release()
+        if r.status >= 400:
+            raise RuntimeError(f"HTTP {r.status}: {j}")
         return j

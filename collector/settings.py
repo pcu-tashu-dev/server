@@ -84,6 +84,6 @@ def load_settings() -> Settings:
         ),
         pb_url=os.getenv("PB_URL") or None,
         pb_admin_token=os.getenv("PB_ADMIN_TOKEN") or None,
-        pb_station_collection=os.getenv("PB_STATION_COLLECTION", "station"),
-        pb_zone_collection=os.getenv("PB_ZONE_COLLECTION", "zone"),
+        pb_station_collection=os.getenv("PB_STATION_COLLECTION", "stations"),
+        pb_zone_collection=os.getenv("PB_ZONE_COLLECTION", "daejeon_zones"),
     )
