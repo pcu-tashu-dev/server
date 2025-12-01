@@ -47,21 +47,21 @@ future_input_list = [
 # -------------------------
 # 라이브러리
 # -------------------------
-from google.colab import drive
 import pandas as pd
 import numpy as np
 import joblib
 import json
 from tensorflow.keras.models import load_model
+from influxdb_client import InfluxDBClient
+from collector.settings import load_settings
 
 # -------------------------
 # 저장된 모델/스케일러/딕셔너리 경로 설정
 # -------------------------
-drive.mount('/content/drive', force_remount=True)
-MODEL_PATH = '/content/drive/MyDrive/seq2seq_model3.h5'
-SCALER_X_PATH = '/content/drive/MyDrive/scaler_X3.save'
-SCALER_Y_PATH = '/content/drive/MyDrive/scaler_y3.save'
-STATION_DICT_PATH = '/content/drive/MyDrive/station_dict4.json'
+MODEL_PATH = 'model/seq2seq_model3.h5'
+SCALER_X_PATH = 'model/scaler_X3.save'
+SCALER_Y_PATH = 'model/scaler_y3.save'
+STATION_DICT_PATH = 'model/station_dict4.json'
 
 
 model = load_model(MODEL_PATH, compile=False)  
@@ -112,21 +112,68 @@ def backend_predict_recent_data(future_input_list, feature_cols, timesteps=24, h
         })
     return pd.DataFrame(future_list)
 
+
+# -------------------------
+# InfluxDB에서 입력 데이터 가져오기
+# -------------------------
+def fetch_recent_from_influx(station_id: str, start: str = "-24h", limit: int = 144):
+    """
+    InfluxDB의 tashu_station(measurement)에서 지정 정류소의 최근 데이터를 읽어
+    future_input_list 형태(list[dict])로 반환.
+
+    start: Flux range start 값, 예) "-6h", "-1d"
+    limit: 최대 레코드 개수
+    """
+    st = load_settings()
+    if not (st.influx_url and st.influx_org and st.influx_token and st.influx_bucket):
+        raise RuntimeError("InfluxDB 연결 정보가 env에 설정되어 있지 않습니다.")
+
+    flux = f'''
+from(bucket: "{st.influx_bucket}")
+  |> range(start: {start})
+  |> filter(fn: (r) => r["_measurement"] == "{st.influx_measurement}")
+  |> filter(fn: (r) => r["station_id"] == "{station_id}")
+  |> filter(fn: (r) => r["_field"] == "parking_count" or r["_field"] == "temp" or r["_field"] == "wind_speed")
+  |> pivot(rowKey:["_time","station_id"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+  |> limit(n: {limit})
+'''
+
+    client = InfluxDBClient(
+        url=st.influx_url,
+        org=st.influx_org,
+        token=st.influx_token,
+        bucket=st.influx_bucket,
+    )
+    try:
+        tables = client.query_api().query(flux, org=st.influx_org)
+    finally:
+        client.close()
+
+    rows = []
+    for table in tables:
+        for record in table.records:
+            values = record.values
+            rows.append(
+                {
+                    "_time": record.get_time().strftime("%Y-%m-%d %H:%M:%S"),
+                    "station_id": values.get("station_id"),
+                    "temp": float(values.get("temp")) if values.get("temp") is not None else None,
+                    "wind_speed": float(values.get("wind_speed")) if values.get("wind_speed") is not None else None,
+                    "parking_count": int(values.get("parking_count")) if values.get("parking_count") is not None else None,
+                }
+            )
+    return rows
+
 # -------------------------
 # 백엔드용 실행 예시
 # future_input_list에 데이터베이스로부터 실제 데이터를 가져올것
 # future_input_list 예시의 6개 데이터보다 많은 데이터 포함 가능
 # -------------------------
 if __name__ == "__main__":
-    future_input_list = [
-        {'_time':'2025-11-27 15:00:00','station_id':'ST0970','temp':16.0,'wind_speed':31,'parking_count':101},
-        {'_time':'2025-11-27 15:10:00','station_id':'ST0970','temp':16.1,'wind_speed':21,'parking_count':111},
-        {'_time':'2025-11-27 15:20:00','station_id':'ST0970','temp':16.2,'wind_speed':25,'parking_count':110},
-        {'_time':'2025-11-27 15:30:00','station_id':'ST0970','temp':16.3,'wind_speed':28,'parking_count':112},
-        {'_time':'2025-11-27 15:40:00','station_id':'ST0970','temp':16.4,'wind_speed':31,'parking_count':111},
-        {'_time':'2025-11-27 15:50:00','station_id':'ST0970','temp':16.5,'wind_speed':31,'parking_count':121},
-    ]
-    
+    future_input_list = fetch_recent_from_influx(station_id="ST0970", start="-2h", limit=60)
+    print(f"Fetched {len(future_input_list)} rows from InfluxDB")
+
     features = ['temp','wind_speed']
     future_result = backend_predict_recent_data(future_input_list, features, timesteps=10, horizon=6)
 
