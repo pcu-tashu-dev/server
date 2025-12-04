@@ -20,6 +20,13 @@ try {
   console.log("[load] stations failed:", e);
 }
 
+try {
+  require(`${__hooks}/forecasts/index.pb.js`);
+  console.log("[load] forecasts ok");
+} catch (e) {
+  console.log("[load] forecasts failed:", e);
+}
+
 (() => {
   console.log("🎉 Tashu-dev application fired!");
 })();

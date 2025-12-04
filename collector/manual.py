@@ -53,15 +53,15 @@ import joblib
 import json
 from tensorflow.keras.models import load_model
 from influxdb_client import InfluxDBClient
-from collector.settings import load_settings
+from settings import load_settings
 
 # -------------------------
 # 저장된 모델/스케일러/딕셔너리 경로 설정
 # -------------------------
-MODEL_PATH = 'model/seq2seq_model3.h5'
-SCALER_X_PATH = 'model/scaler_X3.save'
-SCALER_Y_PATH = 'model/scaler_y3.save'
-STATION_DICT_PATH = 'model/station_dict4.json'
+MODEL_PATH = '../model/seq2seq_model3.h5'
+SCALER_X_PATH = '../model/scaler_X3.save'
+SCALER_Y_PATH = '../model/scaler_y3.save'
+STATION_DICT_PATH = '../model/station_dict4.json'
 
 
 model = load_model(MODEL_PATH, compile=False)  
@@ -69,6 +69,20 @@ scaler_X = joblib.load(SCALER_X_PATH)
 scaler_y = joblib.load(SCALER_Y_PATH)
 with open(STATION_DICT_PATH,'r') as f:
     station_dict = json.load(f)
+
+
+def _station_vocab_size():
+    """Return embedding input_dim; fallback to len(station_dict) or 1."""
+    try:
+        from tensorflow.keras.layers import Embedding
+
+        for layer in model.layers:
+            if isinstance(layer, Embedding):
+                return getattr(layer, "input_dim", None) or len(station_dict) or 1
+    except Exception:
+        pass
+    return len(station_dict) or 1
+
 
 # -------------------------
 # 예측 함수 정의
@@ -83,7 +97,10 @@ def backend_predict_recent_data(future_input_list, feature_cols, timesteps=24, h
     future_df['hour'] = future_df['datetime'].dt.hour
     future_df['minute'] = future_df['datetime'].dt.minute
     future_df['dayofweek'] = future_df['datetime'].dt.dayofweek
-    future_df['station_idx'] = future_df['station_id'].map(station_dict)
+    # station idx를 dict에서 찾지 못하면 0으로, vocab 범위를 넘어가면 클리핑
+    vocab_size = _station_vocab_size()
+    future_df['station_idx'] = future_df['station_id'].map(station_dict).fillna(0).astype(int)
+    future_df['station_idx'] = future_df['station_idx'].clip(lower=0, upper=max(vocab_size - 1, 0))
 
     X_future_num = future_df[feature_cols + ['hour','minute','dayofweek']].values.astype(np.float32)
     X_future_scaled = scaler_X.transform(X_future_num)

@@ -39,6 +39,13 @@ class Settings:
     pb_admin_token: Optional[str]
     pb_station_collection: str
     pb_zone_collection: str
+    predict_enabled: bool
+    predict_horizon: int
+    predict_timesteps: int
+    predict_step_minutes: int
+    predict_concurrency: int
+    predict_save_steps: int
+    predict_max_stations: int
 
 
 def _env_bool(k: str, default: bool) -> bool:
@@ -86,4 +93,11 @@ def load_settings() -> Settings:
         pb_admin_token=os.getenv("PB_ADMIN_TOKEN") or None,
         pb_station_collection=os.getenv("PB_STATION_COLLECTION", "stations"),
         pb_zone_collection=os.getenv("PB_ZONE_COLLECTION", "daejeon_zones"),
+        predict_enabled=_env_bool("PREDICT_ENABLED", False),
+        predict_horizon=int(os.getenv("PREDICT_HORIZON", "6")),
+        predict_timesteps=int(os.getenv("PREDICT_TIMESTEPS", "10")),
+        predict_step_minutes=int(os.getenv("PREDICT_STEP_MINUTES", "10")),
+        predict_concurrency=int(os.getenv("PREDICT_CONCURRENCY", "10000")),
+        predict_save_steps=int(os.getenv("PREDICT_SAVE_STEPS", "6")),
+        predict_max_stations=int(os.getenv("PREDICT_MAX_STATIONS", "1000000")),
     )

@@ -18,13 +18,15 @@ async def get_parking_count_response(http: AsyncHTTP, st: Settings) -> Dict[str,
 
 def parse_parking_count(res: Dict[str, Any]) -> List[Tuple[str, int]]:
     data = res.get("results") or res.get("result") or res.get("data") or []
-    out: List[Tuple[str, int]] = []
+    latest: Dict[str, int] = {}
     for x in data:
-        sid = str(x.get("id") or x.get("station_id") or x.get("stationId") or "")
+        sid = str(
+            x.get("id") or x.get("station_id") or x.get("stationId") or ""
+        ).strip().upper()
         pc = x.get("parking_count") or x.get("parkingCount") or x.get("parking") or 0
         if sid:
-            out.append((sid, int(pc)))
-    return out
+            latest[sid] = int(pc)  # 뒤에 오는 값을 우선시
+    return list(latest.items())
 
 
 async def _get_zone_by_station_id(
@@ -76,6 +78,7 @@ async def _augment_with_weather(
     if not (st.pb_url and st.openweather_api_key):
         return {}
     sem = asyncio.Semaphore(st.concurrency)
+    station_ids = list(dict.fromkeys(s for s, _ in rows))  # 중복 제거, 순서 유지
 
     async def one(sid: str) -> Tuple[str, Dict[str, Any]]:
         async with sem:
@@ -87,7 +90,7 @@ async def _augment_with_weather(
             d = await _get_weather(http, st, float(lat), float(lon))
             return sid, _parse_weather(d)
 
-    pairs = await asyncio.gather(*(one(s) for s, _ in rows))
+    pairs = await asyncio.gather(*(one(s) for s in station_ids))
     return dict(pairs)
 
 
