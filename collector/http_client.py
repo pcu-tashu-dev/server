@@ -133,6 +133,8 @@ class AsyncHTTP:
         json_body=None,
         data=None,
         proxy: Optional[str] = None,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
     ):
         if self.s.http_debug:
             print(
@@ -150,8 +152,8 @@ class AsyncHTTP:
             data=data,
             proxy=proxy,
             timeout=aiohttp.ClientTimeout(
-                sock_connect=self.s.http_timeout_connect,
-                sock_read=self.s.http_timeout_read,
+                sock_connect=timeout_connect or self.s.http_timeout_connect,
+                sock_read=timeout_read or self.s.http_timeout_read,
             ),
         )
 
@@ -165,13 +167,17 @@ class AsyncHTTP:
         json_body=None,
         data=None,
         max_attempts=None,
+        force_direct: bool = False,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
     ):
         attempts = (
             max_attempts if max_attempts is not None else (self.s.retry_total + 1)
         )
         last_exc = None
         tried_direct = False
-        if self.s.allow_direct:
+        direct_allowed = self.s.allow_direct or force_direct
+        if direct_allowed:
             try:
                 await asyncio.sleep(
                     self.s.jitter_base + random.random() * self.s.jitter_extra
@@ -184,6 +190,8 @@ class AsyncHTTP:
                     json_body=json_body,
                     data=data,
                     proxy=None,
+                    timeout_connect=timeout_connect,
+                    timeout_read=timeout_read,
                 )
                 if r.status in (401, 403, 429):
                     last_exc = RuntimeError(f"blocked {r.status} direct")
@@ -205,6 +213,8 @@ class AsyncHTTP:
             except aiohttp.ClientError as e:
                 last_exc = e
             tried_direct = True
+            if force_direct:
+                raise last_exc or RuntimeError("all attempts failed (direct)")
         if not self.pool:
             if tried_direct:
                 raise last_exc or RuntimeError("all attempts failed (direct)")
@@ -225,6 +235,8 @@ class AsyncHTTP:
                     json_body=json_body,
                     data=data,
                     proxy=proxy,
+                    timeout_connect=timeout_connect,
+                    timeout_read=timeout_read,
                 )
                 if r.status in (401, 403, 429):
                     await self.pool.mark_failure(node, penalty=120)
@@ -259,10 +271,25 @@ class AsyncHTTP:
         raise last_exc or RuntimeError("all attempts failed")
 
     async def get_json(
-        self, url: str, *, headers=None, params=None, max_attempts=None
+        self,
+        url: str,
+        *,
+        headers=None,
+        params=None,
+        max_attempts=None,
+        force_direct: bool = False,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
     ) -> Dict[str, Any]:
         r = await self.request(
-            "GET", url, headers=headers, params=params, max_attempts=max_attempts
+            "GET",
+            url,
+            headers=headers,
+            params=params,
+            max_attempts=max_attempts,
+            force_direct=force_direct,
+            timeout_connect=timeout_connect,
+            timeout_read=timeout_read,
         )
         try:
             j = await r.json()
@@ -275,10 +302,25 @@ class AsyncHTTP:
         return j
 
     async def post_json(
-        self, url: str, *, headers=None, json_body=None, max_attempts=None
+        self,
+        url: str,
+        *,
+        headers=None,
+        json_body=None,
+        max_attempts=None,
+        force_direct: bool = False,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
     ) -> Dict[str, Any]:
         r = await self.request(
-            "POST", url, headers=headers, json_body=json_body, max_attempts=max_attempts
+            "POST",
+            url,
+            headers=headers,
+            json_body=json_body,
+            max_attempts=max_attempts,
+            force_direct=force_direct,
+            timeout_connect=timeout_connect,
+            timeout_read=timeout_read,
         )
         try:
             j = await r.json()
@@ -291,7 +333,15 @@ class AsyncHTTP:
         return j
 
     async def patch_json(
-        self, url: str, *, headers=None, json_body=None, max_attempts=None
+        self,
+        url: str,
+        *,
+        headers=None,
+        json_body=None,
+        max_attempts=None,
+        force_direct: bool = False,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
     ) -> Dict[str, Any]:
         r = await self.request(
             "PATCH",
@@ -299,6 +349,9 @@ class AsyncHTTP:
             headers=headers,
             json_body=json_body,
             max_attempts=max_attempts,
+            force_direct=force_direct,
+            timeout_connect=timeout_connect,
+            timeout_read=timeout_read,
         )
         try:
             j = await r.json()

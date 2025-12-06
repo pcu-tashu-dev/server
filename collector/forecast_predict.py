@@ -18,6 +18,18 @@ from manual import (
 )
 
 
+def _normalize_pb_datetime(ts: str) -> str:
+    """
+    PocketBase stores datetimes like "YYYY-MM-DD HH:MM:SSZ". Normalize inputs to match.
+    """
+    if not isinstance(ts, str):
+        return ts
+    t = ts.replace("T", " ")
+    if not t.endswith("Z") and not t.endswith("z"):
+        t = t + "Z"
+    return t
+
+
 def _pb_base(st: Settings) -> str:
     base = (st.pb_url or "").rstrip("/")
     if not base:
@@ -46,9 +58,13 @@ async def _upsert_forecast_records(
     base = _pb_base(st)
     headers = _auth_headers(st)
     col_url = f"{base}/collections/station_forecasts/records"
+    t_connect = 10
+    t_read = 60
+
 
     async def save_one(item: Dict):
-        target_time = item["target_time"]
+        target_time_raw = item["target_time"]
+        target_time = _normalize_pb_datetime(target_time_raw)
         filter_q = f'station="{station_id}" && target_time="{target_time}"'
         existing_id = None
         try:
@@ -57,6 +73,9 @@ async def _upsert_forecast_records(
                 headers=headers,
                 params={"filter": filter_q, "perPage": 1},
                 max_attempts=st.retry_total + 1,
+                force_direct=True,
+                timeout_connect=t_connect,
+                timeout_read=t_read,
             )
             items_arr = res.get("items") or []
             if items_arr:
@@ -79,6 +98,9 @@ async def _upsert_forecast_records(
                     headers=headers,
                     json_body=payload,
                     max_attempts=st.retry_total + 1,
+                    force_direct=True,
+                    timeout_connect=t_connect,
+                    timeout_read=t_read,
                 )
             else:
                 await http.post_json(
@@ -86,6 +108,9 @@ async def _upsert_forecast_records(
                     headers=headers,
                     json_body=payload,
                     max_attempts=st.retry_total + 1,
+                    force_direct=True,
+                    timeout_connect=t_connect,
+                    timeout_read=t_read,
                 )
         except Exception as e:
             print({"forecast_upsert_error": str(e), "station": station_id, "target_time": target_time})

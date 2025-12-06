@@ -97,7 +97,7 @@ def load_settings() -> Settings:
         predict_horizon=int(os.getenv("PREDICT_HORIZON", "6")),
         predict_timesteps=int(os.getenv("PREDICT_TIMESTEPS", "10")),
         predict_step_minutes=int(os.getenv("PREDICT_STEP_MINUTES", "10")),
-        predict_concurrency=int(os.getenv("PREDICT_CONCURRENCY", "10000")),
+        predict_concurrency=int(os.getenv("PREDICT_CONCURRENCY", "5000")),
         predict_save_steps=int(os.getenv("PREDICT_SAVE_STEPS", "6")),
         predict_max_stations=int(os.getenv("PREDICT_MAX_STATIONS", "1000000")),
     )
