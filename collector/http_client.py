@@ -3,7 +3,26 @@ from __future__ import annotations
 import asyncio, aiohttp, ssl, socket, random, time, json
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
 from settings import Settings
+
+# FakeUserAgent is best-effort; fall back to a small static pool if unavailable.
+try:
+    from fake_useragent import FakeUserAgent as _FakeUAClass
+except Exception:
+    try:
+        from fake_useragent import UserAgent as _FakeUAClass
+    except Exception:  # pragma: no cover - optional dependency
+        _FakeUAClass = None
+
+_FAKE_UA_INSTANCE: object | bool | None = None
+_FALLBACK_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
+]
 
 
 @dataclass
@@ -86,6 +105,33 @@ def _ssl_ctx(st: Settings) -> ssl.SSLContext | bool:
     return ssl.create_default_context()
 
 
+def _normalize_netloc(url: str) -> str:
+    try:
+        return urlparse(url).netloc.lower()
+    except Exception:
+        return ""
+
+
+def _get_fake_user_agent() -> str:
+    """Return a rotating User-Agent; prefer FakeUserAgent, fall back to static pool."""
+    global _FAKE_UA_INSTANCE
+    if _FakeUAClass is not None and _FAKE_UA_INSTANCE is None:
+        try:
+            _FAKE_UA_INSTANCE = _FakeUAClass()
+        except Exception:
+            _FAKE_UA_INSTANCE = False
+    if _FAKE_UA_INSTANCE not in (None, False):
+        try:
+            ua = getattr(_FAKE_UA_INSTANCE, "random", None)
+            if callable(ua):
+                ua = ua()
+            if ua:
+                return ua
+        except Exception:
+            pass
+    return random.choice(_FALLBACK_USER_AGENTS)
+
+
 async def fetch_proxy_list(st: Settings) -> List[str]:
     if not st.proxy_list_source_url:
         return st.proxy_urls
@@ -118,10 +164,25 @@ class AsyncHTTP:
         self.session = aiohttp.ClientSession(
             connector=self.connector, trust_env=False, raise_for_status=False
         )
+        self._tashu_netloc = _normalize_netloc(settings.tashu_url)
 
     async def close(self):
         await self.session.close()
         await self.connector.close()
+
+    def _apply_tashu_user_agent(
+        self, url: str, headers: Optional[Dict[str, str]]
+    ) -> Optional[Dict[str, str]]:
+        if not self._tashu_netloc:
+            return headers
+        if _normalize_netloc(url) != self._tashu_netloc:
+            return headers
+        ua = _get_fake_user_agent()
+        if not ua:
+            return headers
+        merged = dict(headers or {})
+        merged.setdefault("User-Agent", ua)
+        return merged
 
     async def _do(
         self,
@@ -143,6 +204,7 @@ class AsyncHTTP:
                     ensure_ascii=False,
                 )
             )
+        headers = self._apply_tashu_user_agent(url, headers)
         return await self.session.request(
             method.upper(),
             url,
