@@ -90,14 +90,7 @@ def load_settings() -> Settings:
             "INFLUXDB_MEASUREMENT_WEATHER", "tashu_weather"
         ),
         pb_url=os.getenv("PB_URL") or None,
-        pb_admin_token=os.getenv("PB_ADMIN_TOKEN") or None,
+        pb_admin_token=os.getenv("PB_ADMIN_TOKEN") or os.getenv("PB_ADMIN_KEY") or None,
         pb_station_collection=os.getenv("PB_STATION_COLLECTION", "stations"),
         pb_zone_collection=os.getenv("PB_ZONE_COLLECTION", "daejeon_zones"),
-        predict_enabled=_env_bool("PREDICT_ENABLED", False),
-        predict_horizon=int(os.getenv("PREDICT_HORIZON", "6")),
-        predict_timesteps=int(os.getenv("PREDICT_TIMESTEPS", "10")),
-        predict_step_minutes=int(os.getenv("PREDICT_STEP_MINUTES", "10")),
-        predict_concurrency=int(os.getenv("PREDICT_CONCURRENCY", "5000")),
-        predict_save_steps=int(os.getenv("PREDICT_SAVE_STEPS", "6")),
-        predict_max_stations=int(os.getenv("PREDICT_MAX_STATIONS", "1000000")),
     )

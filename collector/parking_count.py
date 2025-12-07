@@ -20,9 +20,11 @@ def parse_parking_count(res: Dict[str, Any]) -> List[Tuple[str, int]]:
     data = res.get("results") or res.get("result") or res.get("data") or []
     latest: Dict[str, int] = {}
     for x in data:
-        sid = str(
-            x.get("id") or x.get("station_id") or x.get("stationId") or ""
-        ).strip().upper()
+        sid = (
+            str(x.get("id") or x.get("station_id") or x.get("stationId") or "")
+            .strip()
+            .upper()
+        )
         pc = x.get("parking_count") or x.get("parkingCount") or x.get("parking") or 0
         if sid:
             latest[sid] = int(pc)  # 뒤에 오는 값을 우선시
@@ -34,15 +36,65 @@ async def _get_zone_by_station_id(
 ) -> Dict[str, Any]:
     if not st.pb_url:
         return {}
-    url = f"{st.pb_url.rstrip('/')}/stations/{sid}"
-    r = await http.get_json(
-        url,
-        headers={"Content-Type": "application/json"},
-        max_attempts=st.retry_total + 1,
-    )
-    if isinstance(r, dict) and r.get("success") is False:
+    base = st.pb_url.rstrip("/")
+
+    # 1) Try legacy public endpoint that returns station+zone without auth.
+    legacy_url = f"{base}/stations/{sid}"
+    try:
+        legacy = await http.get_json(
+            legacy_url,
+            headers={"Content-Type": "application/json"},
+            max_attempts=st.retry_total + 1,
+        )
+        if isinstance(legacy, dict) and legacy.get("success") is not False:
+            z = legacy.get("zone")
+            if isinstance(z, dict) and z.get("center_lat") is not None:
+                return z
+    except Exception:
+        pass
+
+    # 2) Fallback to PocketBase collections API (auth optional if rules allow).
+    headers = {"Content-Type": "application/json"}
+    if st.pb_admin_token:
+        headers["Authorization"] = f"Bearer {st.pb_admin_token}"
+
+    async def _fetch_station_by_id() -> Dict[str, Any]:
+        url = f"{base}/api/collections/{st.pb_station_collection}/records/{sid}"
+        params = {"expand": "zone"}
+        return await http.get_json(
+            url, headers=headers, params=params, max_attempts=st.retry_total + 1
+        )
+
+    async def _fetch_station_by_filter() -> Dict[str, Any]:
+        url = f"{base}/api/collections/{st.pb_station_collection}/records"
+        q = {"filter": f'station_id="{sid}"', "perPage": "1", "expand": "zone"}
+        res = await http.get_json(
+            url, headers=headers, params=q, max_attempts=st.retry_total + 1
+        )
+        items = res.get("items") or res.get("records") or []
+        return items[0] if items else {}
+
+    try:
+        station = await _fetch_station_by_id()
+        if isinstance(station, dict) and station.get("code") == 404:
+            station = await _fetch_station_by_filter()
+    except Exception:
+        station = await _fetch_station_by_filter()
+
+    if not isinstance(station, dict):
         return {}
-    return r.get("zone") or {}
+
+    expand = station.get("expand") or {}
+    if isinstance(expand.get("zone"), dict):
+        return expand["zone"]
+
+    zid = station.get("zone")
+    if not zid:
+        return {}
+
+    url = f"{base}/api/collections/{st.pb_zone_collection}/records/{zid}"
+    zr = await http.get_json(url, headers=headers, max_attempts=st.retry_total + 1)
+    return zr if isinstance(zr, dict) else {}
 
 
 async def _get_weather(
